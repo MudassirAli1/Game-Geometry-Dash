@@ -119,13 +119,14 @@ class Game:
         pygame.init()
         pygame.mixer.init()
 
-        # SCALED | RESIZABLE is the best combination for browser games
+        # SCALED | RESIZABLE is best for browsers
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SCALED | pygame.RESIZABLE)
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
         self.delta_time = 0
 
-        self.state = STATE_MENU
+        # Starting directly in PLAYING mode for auto-start
+        self.state = STATE_PLAYING
         self.camera_x = 0
 
         self.save_manager = SaveManager(SAVE_FILE)
@@ -160,42 +161,46 @@ class Game:
             if event.type == pygame.QUIT:
                 return False
 
-            # Unified Input Logic for Jumping
+            # Unified Input (Keyboard, Mouse, Touch)
             if self.state == STATE_PLAYING:
-                jump_started = False
+                jump_trigger = False
                 
+                # Keyboard
                 if event.type == pygame.KEYDOWN:
                     if event.key in [pygame.K_SPACE, pygame.K_UP]:
-                        jump_started = True
                         self.player.is_holding_jump = True
-                
+                        jump_trigger = True
                 elif event.type == pygame.KEYUP:
                     if event.key in [pygame.K_SPACE, pygame.K_UP]:
                         self.player.is_holding_jump = False
 
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    # Ignore touch-emulated mouse events
-                    if not hasattr(event, 'touch') or not event.touch:
-                        jump_started = True
-                        self.player.is_holding_jump = True
-                
-                elif event.type == pygame.MOUSEBUTTONUP:
-                    if not hasattr(event, 'touch') or not event.touch:
-                        self.player.is_holding_jump = False
-
+                # Native Touch (FINGERDOWN is faster for Mobile)
                 elif event.type == pygame.FINGERDOWN:
-                    jump_started = True
                     self.player.is_holding_jump = True
-                
+                    jump_trigger = True
                 elif event.type == pygame.FINGERUP:
                     self.player.is_holding_jump = False
 
-                if jump_started:
+                # Mouse (Desktop Fallback)
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    # Check if this is a real mouse click (not emulated by touch)
+                    if not hasattr(event, 'touch'):
+                        self.player.is_holding_jump = True
+                        jump_trigger = True
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    if not hasattr(event, 'touch'):
+                        self.player.is_holding_jump = False
+
+                if jump_trigger:
                     if self.player.jump():
                         self.sound_manager.play('jump')
-                        self.ui_manager.particles.emit_jump_particles(self.player.rect.centerx, self.player.rect.bottom, self.player.color)
+                        self.ui_manager.particles.emit_jump_particles(
+                            self.player.rect.centerx,
+                            self.player.rect.bottom,
+                            self.player.color
+                        )
 
-            # UI Event Handling
+            # UI Button Handling
             if self.state == STATE_MENU:
                 result = self.ui_manager.handle_event(event, self.ui_manager.menu_buttons)
                 if result == "START GAME":

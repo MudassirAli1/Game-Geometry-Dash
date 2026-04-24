@@ -23,6 +23,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            cursor: pointer;
         }
         #status {
             font-size: 24px;
@@ -49,13 +50,15 @@
         }
         canvas {
             border: none;
-            display: none; /* Hidden until loaded */
+            width: 100%;
+            height: 100%;
+            display: none;
         }
     </style>
 </head>
 <body>
     <div id="status-container">
-        <div id="status">DOWNLOADING ASSETS...</div>
+        <div id="status">DOWNLOADING SYSTEM...</div>
         <div id="progress"><div id="progress-bar"></div></div>
     </div>
     <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
@@ -67,32 +70,23 @@
         var canvasElement = document.getElementById('canvas');
 
         var Module = {
-            print: (function() {
-                return function(text) { console.log(text); };
-            })(),
-            canvas: (function() {
-                return canvasElement;
-            })(),
+            print: (function() { return function(text) { console.log(text); }; })(),
+            canvas: (function() { return canvasElement; })(),
             setStatus: function(text) {
-                if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
-                if (text === Module.setStatus.last.text) return;
-                
-                // When pygbag is ready, it sends this exact string
                 if (text === "Ready to start! Please click/touch page") {
-                    statusContainer.style.display = 'none';
-                    canvasElement.style.display = 'block';
+                    statusElement.innerHTML = "SYSTEM READY - TAP TO PLAY";
+                    progressElement.parentElement.style.display = 'none';
                     
-                    // AUTO-START LOGIC:
-                    // We simulate a click on the window to trigger the game engine
-                    setTimeout(() => {
-                        window.dispatchEvent(new MouseEvent('mousedown'));
-                        window.dispatchEvent(new MouseEvent('mouseup'));
-                        canvasElement.click();
-                        console.log("Auto-starting game...");
-                    }, 500);
+                    // The actual start happens when the user clicks the container
+                    statusContainer.onclick = function() {
+                        statusContainer.style.display = 'none';
+                        canvasElement.style.display = 'block';
+                        // Give focus to the canvas
+                        canvasElement.focus();
+                    };
+                } else {
+                    statusElement.innerHTML = text;
                 }
-                
-                statusElement.innerHTML = text;
             },
             totalDependencies: 0,
             monitorRunDependencies: function(left) {
@@ -101,7 +95,6 @@
                 progressElement.style.width = percentage + '%';
             }
         };
-        Module.setStatus('Initialising...');
     </script>
     <script async type="text/javascript" src="main.js"></script>
 </body>
