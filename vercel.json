@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "public": true,
+  "cleanUrls": true,
+  "buildCommand": "pip install pygbag && python3 -m pygbag --build main.py",
+  "outputDirectory": "build/web",
+  "framework": null
+}
