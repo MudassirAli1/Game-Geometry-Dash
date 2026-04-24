@@ -119,8 +119,8 @@ class Game:
         pygame.init()
         pygame.mixer.init()
 
-        # SCALED flag makes the game fill the browser window automatically
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SCALED)
+        # SCALED | RESIZABLE is the best combination for browser games
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SCALED | pygame.RESIZABLE)
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
         self.delta_time = 0
@@ -160,55 +160,48 @@ class Game:
             if event.type == pygame.QUIT:
                 return False
 
-            # Unified Input Handling (Keyboard, Mouse, Touch)
+            # Unified Input Logic for Jumping
             if self.state == STATE_PLAYING:
-                jump_input = False
+                jump_started = False
                 
-                # Key Start
                 if event.type == pygame.KEYDOWN:
                     if event.key in [pygame.K_SPACE, pygame.K_UP]:
+                        jump_started = True
                         self.player.is_holding_jump = True
-                        jump_input = True
                 
-                # Key Release
                 elif event.type == pygame.KEYUP:
                     if event.key in [pygame.K_SPACE, pygame.K_UP]:
                         self.player.is_holding_jump = False
 
-                # Native Touch Down (Fastest for Mobile)
-                elif event.type == pygame.FINGERDOWN:
-                    self.player.is_holding_jump = True
-                    jump_input = True
-                
-                # Native Touch Up
-                elif event.type == pygame.FINGERUP:
-                    self.player.is_holding_jump = False
-
-                # Mouse Down (Desktop fallback)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    # Ignore touch-emulated mouse events to prevent double-jumping
+                    # Ignore touch-emulated mouse events
                     if not hasattr(event, 'touch') or not event.touch:
+                        jump_started = True
                         self.player.is_holding_jump = True
-                        jump_input = True
                 
-                # Mouse Up
                 elif event.type == pygame.MOUSEBUTTONUP:
                     if not hasattr(event, 'touch') or not event.touch:
                         self.player.is_holding_jump = False
 
-                if jump_input:
+                elif event.type == pygame.FINGERDOWN:
+                    jump_started = True
+                    self.player.is_holding_jump = True
+                
+                elif event.type == pygame.FINGERUP:
+                    self.player.is_holding_jump = False
+
+                if jump_started:
                     if self.player.jump():
                         self.sound_manager.play('jump')
                         self.ui_manager.particles.emit_jump_particles(self.player.rect.centerx, self.player.rect.bottom, self.player.color)
 
-            # UI Button Handling
+            # UI Event Handling
             if self.state == STATE_MENU:
                 result = self.ui_manager.handle_event(event, self.ui_manager.menu_buttons)
                 if result == "START GAME":
                     self._start_game()
-                elif result == "CHANGE SKIN":
-                    self.save_manager.skin_index = (self.save_manager.skin_index + 1) % len(PLAYER_SKINS)
-                    self.player.change_skin(self.save_manager.skin_index)
+                elif result == "SETTINGS":
+                    self.state = STATE_SETTINGS
                 elif result == "EXIT":
                     return False
 
@@ -228,7 +221,15 @@ class Game:
                 elif result == "MAIN MENU":
                     self.state = STATE_MENU
 
-            # Keyboard Shortcuts (Global)
+            elif self.state == STATE_SETTINGS:
+                result = self.ui_manager.handle_event(event, self.ui_manager.settings_buttons)
+                if result == "CHANGE SKIN":
+                    self.save_manager.skin_index = (self.save_manager.skin_index + 1) % len(PLAYER_SKINS)
+                    self.player.change_skin(self.save_manager.skin_index)
+                elif result == "BACK":
+                    self.state = STATE_MENU
+
+            # Global Shortcuts
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if self.state == STATE_PLAYING:
@@ -245,7 +246,7 @@ class Game:
         """Update game logic."""
         self.ui_manager.particles.update(self.delta_time)
 
-        if self.state == STATE_MENU:
+        if self.state == STATE_MENU or self.state == STATE_SETTINGS:
             self.ui_manager.background.update(self.delta_time, self.camera_x)
 
         if self.state == STATE_PLAYING:
@@ -301,17 +302,19 @@ class Game:
         self.death_flash = 0
 
     def _draw(self):
+        """Draw everything on screen."""
         self.ui_manager.background.draw(self.screen, self.camera_x)
 
         if self.state == STATE_MENU:
-            self.ui_manager.draw_menu(self.screen, self.save_manager.skin_index)
-
+            self.ui_manager.draw_menu(self.screen)
+        elif self.state == STATE_SETTINGS:
+            self.ui_manager.draw_settings(self.screen, self.save_manager.skin_index)
         elif self.state in [STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER]:
             self._draw_game()
             if self.state == STATE_PAUSED:
                 self.ui_manager.draw_pause_menu(self.screen)
             elif self.state == STATE_GAME_OVER:
-                self.ui_manager.draw_game_over(self.screen, self.save_manager.last_score, self.save_manager.best_score)
+                self.ui_manager.draw_game_over(self.screen, int(self.level.get_progress(self.player.rect.x) * 10), self.save_manager.best_score)
 
         self.ui_manager.particles.draw(self.screen, self.camera_x)
 
