@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en-us">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Neon Dash</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0a0a1e; /* Matches your DARK_BG */
+            color: #00ffff; /* Matches your NEON_BLUE */
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        #status {
+            font-size: 24px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00ffff;
+        }
+        #progress {
+            width: 300px;
+            height: 10px;
+            background-color: #1a1a3a;
+            border: 2px solid #00ffff;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #00ffff;
+            transition: width 0.2s;
+        }
+        canvas {
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 20px #00ffff;
+            display: none; /* Hidden until loaded */
+        }
+    </style>
+</head>
+<body>
+    <div id="status">INITIALIZING SYSTEM...</div>
+    <div id="progress"><div id="progress-bar"></div></div>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+
+    <script type='text/javascript'>
+        var statusElement = document.getElementById('status');
+        var progressElement = document.getElementById('progress-bar');
+
+        var Module = {
+            print: (function() {
+                return function(text) { console.log(text); };
+            })(),
+            canvas: (function() {
+                var canvas = document.getElementById('canvas');
+                return canvas;
+            })(),
+            setStatus: function(text) {
+                if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+                if (text === Module.setStatus.last.text) return;
+                
+                // Change the default text to your custom text
+                if (text === "Ready to start! Please click/touch page") {
+                    text = "SYSTEM READY - TAP TO START";
+                    document.body.style.cursor = "pointer";
+                }
+                
+                statusElement.innerHTML = text;
+            },
+            totalDependencies: 0,
+            monitorRunDependencies: function(left) {
+                this.totalDependencies = Math.max(this.totalDependencies, left);
+                Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+                var percentage = left ? (100 * (this.totalDependencies-left) / this.totalDependencies) : 100;
+                progressElement.style.width = percentage + '%';
+            }
+        };
+        Module.setStatus('Downloading...');
+    </script>
+    <script async type="text/javascript" src="main.js"></script>
+</body>
+</html>
