@@ -125,8 +125,7 @@ class Game:
         self.clock = pygame.time.Clock()
         self.delta_time = 0
 
-        # Starting directly in PLAYING mode for auto-start
-        self.state = STATE_PLAYING
+        self.state = STATE_MENU
         self.camera_x = 0
 
         self.save_manager = SaveManager(SAVE_FILE)
