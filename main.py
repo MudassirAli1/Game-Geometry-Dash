@@ -125,7 +125,7 @@ class Game:
         self.clock = pygame.time.Clock()
         self.delta_time = 0
 
-        self.state = STATE_PLAYING
+        self.state = STATE_MENU
         self.camera_x = 0
 
         self.save_manager = SaveManager(SAVE_FILE)
@@ -162,29 +162,44 @@ class Game:
 
             # Unified Input Handling (Keyboard, Mouse, Touch)
             if self.state == STATE_PLAYING:
+                jump_input = False
+                
                 # Key Start
                 if event.type == pygame.KEYDOWN:
                     if event.key in [pygame.K_SPACE, pygame.K_UP]:
                         self.player.is_holding_jump = True
-                        if self.player.jump():
-                            self.sound_manager.play('jump')
-                            self.ui_manager.particles.emit_jump_particles(self.player.rect.centerx, self.player.rect.bottom, self.player.color)
+                        jump_input = True
                 
                 # Key Release
                 elif event.type == pygame.KEYUP:
                     if event.key in [pygame.K_SPACE, pygame.K_UP]:
                         self.player.is_holding_jump = False
 
-                # Mouse / Touch Down
-                elif event.type == pygame.MOUSEBUTTONDOWN:
+                # Native Touch Down (Fastest for Mobile)
+                elif event.type == pygame.FINGERDOWN:
                     self.player.is_holding_jump = True
+                    jump_input = True
+                
+                # Native Touch Up
+                elif event.type == pygame.FINGERUP:
+                    self.player.is_holding_jump = False
+
+                # Mouse Down (Desktop fallback)
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    # Ignore touch-emulated mouse events to prevent double-jumping
+                    if not hasattr(event, 'touch') or not event.touch:
+                        self.player.is_holding_jump = True
+                        jump_input = True
+                
+                # Mouse Up
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    if not hasattr(event, 'touch') or not event.touch:
+                        self.player.is_holding_jump = False
+
+                if jump_input:
                     if self.player.jump():
                         self.sound_manager.play('jump')
                         self.ui_manager.particles.emit_jump_particles(self.player.rect.centerx, self.player.rect.bottom, self.player.color)
-                
-                # Mouse / Touch Up
-                elif event.type == pygame.MOUSEBUTTONUP:
-                    self.player.is_holding_jump = False
 
             # UI Button Handling
             if self.state == STATE_MENU:

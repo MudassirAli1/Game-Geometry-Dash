@@ -16,18 +16,22 @@ class Button:
         self.font = pygame.font.SysFont("Arial", FONT_SIZE_MEDIUM, bold=True)
 
     def handle_event(self, event):
-        """Check if button was clicked, supporting mouse and touch."""
+        """Check if button was clicked, supporting mouse and native touch."""
         pos = None
         if event.type == pygame.MOUSEMOTION:
             pos = event.pos
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             pos = event.pos
-        
-        # In SCALED mode, event.pos is usually already mapped correctly, 
-        # but we ensure collision is checked against our internal Rect.
+        elif event.type == pygame.FINGERDOWN:
+            # Convert normalized finger coordinates (0-1) to screen coordinates
+            pos = (event.x * self.rect.width * 5, event.y * self.rect.height * 5) 
+            # Note: For SCALED mode, event.x/y are normalized. 
+            # A more robust way is to use screen dimensions:
+            pos = (event.x * SCREEN_WIDTH, event.y * SCREEN_HEIGHT)
+
         if pos:
             self.is_hovered = self.rect.collidepoint(pos)
-            if event.type == pygame.MOUSEBUTTONDOWN and self.is_hovered:
+            if (event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN) and self.is_hovered:
                 return True
         return False
 
