@@ -164,10 +164,30 @@ class Game:
             if event.type == pygame.QUIT:
                 return False
 
-            # Mobile Touch / Mouse Click for jumping
+            # Jumping Logic (Keyboard, Mouse, and Touch)
             if self.state == STATE_PLAYING:
-                if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
+                # Use a single flag to detect if a jump input started this frame
+                jump_started = False
+                
+                if event.type == pygame.KEYDOWN:
+                    if event.key in [pygame.K_SPACE, pygame.K_UP]:
+                        jump_started = True
+                        self.player.is_holding_jump = True
+                
+                elif event.type == pygame.KEYUP:
+                    if event.key in [pygame.K_SPACE, pygame.K_UP]:
+                        self.player.is_holding_jump = False
+
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    # Browsers map touches to MouseButtonDown automatically
+                    jump_started = True
                     self.player.is_holding_jump = True
+                
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    self.player.is_holding_jump = False
+
+                # Process the jump if triggered
+                if jump_started:
                     if self.player.jump():
                         self.sound_manager.play('jump')
                         self.ui_manager.particles.emit_jump_particles(
@@ -175,8 +195,6 @@ class Game:
                             self.player.rect.bottom,
                             self.player.color
                         )
-                elif event.type == pygame.MOUSEBUTTONUP or event.type == pygame.FINGERUP:
-                    self.player.is_holding_jump = False
 
             # Handle button clicks based on game state
             if self.state == STATE_MENU:
@@ -237,10 +255,9 @@ class Game:
                     if self.state in [STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER]:
                         self._restart_game()
 
+            # The KEYUP handling for space/up is now handled in the unified block above
             if event.type == pygame.KEYUP:
-                if event.key == pygame.K_SPACE or event.key == pygame.K_UP:
-                    if self.state == STATE_PLAYING:
-                        self.player.is_holding_jump = False
+                pass
 
         return True
 
@@ -281,8 +298,9 @@ class Game:
             if self.level.is_complete(self.player.rect.x):
                 self._level_complete()
 
-            if self.death_flash > 0:
-                self.death_flash -= self.delta_time * 3
+        # Update death flash regardless of state so it fades out
+        if self.death_flash > 0:
+            self.death_flash -= self.delta_time * 3
 
     def _player_die(self):
         """Player hit an obstacle."""
