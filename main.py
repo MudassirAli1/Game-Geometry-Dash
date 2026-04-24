@@ -29,8 +29,6 @@ class SaveManager:
 
     def save(self):
         """Save data to file."""
-        # Note: In browser, os.makedirs and file writing may behave differently
-        # but pygbag provides a virtual filesystem.
         try:
             os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
             with open(self.filepath, 'w') as f:
@@ -127,7 +125,7 @@ class Game:
         self.clock = pygame.time.Clock()
         self.delta_time = 0
 
-        self.state = STATE_MENU
+        self.state = STATE_PLAYING
         self.camera_x = 0
 
         self.save_manager = SaveManager(SAVE_FILE)
@@ -143,7 +141,6 @@ class Game:
         running = True
 
         while running:
-            # tick(FPS) might be capped by browser, but delta_time is still useful
             self.delta_time = self.clock.tick(FPS) / 1000.0
             self.delta_time = max(MIN_DELTA, min(MAX_DELTA, self.delta_time))
 
@@ -152,7 +149,6 @@ class Game:
             self._draw()
 
             pygame.display.flip()
-            # Essential for pygbag to give control back to the browser
             await asyncio.sleep(0)
 
         pygame.quit()
@@ -164,45 +160,40 @@ class Game:
             if event.type == pygame.QUIT:
                 return False
 
-            # Jumping Logic (Keyboard, Mouse, and Touch)
+            # Unified Input Handling (Keyboard, Mouse, Touch)
             if self.state == STATE_PLAYING:
-                # Use a single flag to detect if a jump input started this frame
-                jump_started = False
-                
+                # Key Start
                 if event.type == pygame.KEYDOWN:
                     if event.key in [pygame.K_SPACE, pygame.K_UP]:
-                        jump_started = True
                         self.player.is_holding_jump = True
+                        if self.player.jump():
+                            self.sound_manager.play('jump')
+                            self.ui_manager.particles.emit_jump_particles(self.player.rect.centerx, self.player.rect.bottom, self.player.color)
                 
+                # Key Release
                 elif event.type == pygame.KEYUP:
                     if event.key in [pygame.K_SPACE, pygame.K_UP]:
                         self.player.is_holding_jump = False
 
+                # Mouse / Touch Down
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    # Browsers map touches to MouseButtonDown automatically
-                    jump_started = True
                     self.player.is_holding_jump = True
+                    if self.player.jump():
+                        self.sound_manager.play('jump')
+                        self.ui_manager.particles.emit_jump_particles(self.player.rect.centerx, self.player.rect.bottom, self.player.color)
                 
+                # Mouse / Touch Up
                 elif event.type == pygame.MOUSEBUTTONUP:
                     self.player.is_holding_jump = False
 
-                # Process the jump if triggered
-                if jump_started:
-                    if self.player.jump():
-                        self.sound_manager.play('jump')
-                        self.ui_manager.particles.emit_jump_particles(
-                            self.player.rect.centerx,
-                            self.player.rect.bottom,
-                            self.player.color
-                        )
-
-            # Handle button clicks based on game state
+            # UI Button Handling
             if self.state == STATE_MENU:
                 result = self.ui_manager.handle_event(event, self.ui_manager.menu_buttons)
                 if result == "START GAME":
                     self._start_game()
-                elif result == "SETTINGS":
-                    self.state = STATE_SETTINGS
+                elif result == "CHANGE SKIN":
+                    self.save_manager.skin_index = (self.save_manager.skin_index + 1) % len(PLAYER_SKINS)
+                    self.player.change_skin(self.save_manager.skin_index)
                 elif result == "EXIT":
                     return False
 
@@ -222,42 +213,16 @@ class Game:
                 elif result == "MAIN MENU":
                     self.state = STATE_MENU
 
-            elif self.state == STATE_SETTINGS:
-                result = self.ui_manager.handle_event(event, self.ui_manager.settings_buttons)
-                if result == "CHANGE SKIN":
-                    self.save_manager.skin_index = (self.save_manager.skin_index + 1) % len(PLAYER_SKINS)
-                    self.player.change_skin(self.save_manager.skin_index)
-                elif result == "BACK":
-                    self.state = STATE_MENU
-
-            # Handle keyboard
+            # Keyboard Shortcuts (Global)
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if self.state == STATE_PLAYING:
                         self.state = STATE_PAUSED
                     elif self.state == STATE_PAUSED:
                         self.state = STATE_PLAYING
-                    elif self.state == STATE_GAME_OVER:
-                        self._restart_game()
-
-                elif event.key == pygame.K_SPACE or event.key == pygame.K_UP:
-                    if self.state == STATE_PLAYING:
-                        self.player.is_holding_jump = True
-                        if self.player.jump():
-                            self.sound_manager.play('jump')
-                            self.ui_manager.particles.emit_jump_particles(
-                                self.player.rect.centerx,
-                                self.player.rect.bottom,
-                                self.player.color
-                            )
-
                 elif event.key == pygame.K_r:
                     if self.state in [STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER]:
                         self._restart_game()
-
-            # The KEYUP handling for space/up is now handled in the unified block above
-            if event.type == pygame.KEYUP:
-                pass
 
         return True
 
@@ -265,19 +230,16 @@ class Game:
         """Update game logic."""
         self.ui_manager.particles.update(self.delta_time)
 
-        if self.state == STATE_MENU or self.state == STATE_SETTINGS:
+        if self.state == STATE_MENU:
             self.ui_manager.background.update(self.delta_time, self.camera_x)
 
         if self.state == STATE_PLAYING:
             self.player.update(self.delta_time, GROUND_Y)
             self.camera_x = self.player.rect.x - PLAYER_X
-
-            # Generate obstacles and update them
             self.level.generate_ahead(self.player.rect.x, SCREEN_WIDTH)
             for obstacle in self.level.obstacles:
                 obstacle.update(self.delta_time)
 
-            # Check collisions
             if self.player.alive:
                 collision_type, obstacle = self.level.check_collisions(self.player.get_collision_rects())
                 if collision_type == "collision":
@@ -286,46 +248,30 @@ class Game:
                     self.player.velocity_y = JUMP_FORCE * 1.3
                     self.sound_manager.play('jump_pad')
 
-            # Trail particles
             if self.player.on_ground and self.player.alive:
-                self.ui_manager.particles.emit_trail_particles(
-                    self.player.rect.left,
-                    self.player.rect.centery,
-                    self.player.color
-                )
+                self.ui_manager.particles.emit_trail_particles(self.player.rect.left, self.player.rect.centery, self.player.color)
 
-            # Check if level is complete
             if self.level.is_complete(self.player.rect.x):
                 self._level_complete()
 
-        # Update death flash regardless of state so it fades out
         if self.death_flash > 0:
             self.death_flash -= self.delta_time * 3
 
     def _player_die(self):
-        """Player hit an obstacle."""
         self.player.alive = False
         self.sound_manager.play('death')
-        self.ui_manager.particles.emit_death_particles(
-            self.player.rect.centerx,
-            self.player.rect.centery,
-            self.player.color
-        )
+        self.ui_manager.particles.emit_death_particles(self.player.rect.centerx, self.player.rect.centery, self.player.color)
         self.death_flash = 1.0
-
         score = int(self.level.get_progress(self.player.rect.x) * 10)
         self.save_manager.update_score(score)
-
         self.state = STATE_GAME_OVER
 
     def _level_complete(self):
-        """Finished the level!"""
         score = 1000
         self.save_manager.update_score(score)
         self.state = STATE_GAME_OVER
 
     def _start_game(self):
-        """Start a new game."""
         self.player = Player(PLAYER_X, GROUND_Y - PLAYER_SIZE, self.save_manager.skin_index)
         self.level = Level()
         self.camera_x = 0
@@ -333,7 +279,6 @@ class Game:
         self.death_flash = 0
 
     def _restart_game(self):
-        """Restart the current game."""
         self.player.reset()
         self.level.reset()
         self.camera_x = 0
@@ -341,30 +286,20 @@ class Game:
         self.death_flash = 0
 
     def _draw(self):
-        """Draw everything on screen."""
         self.ui_manager.background.draw(self.screen, self.camera_x)
 
         if self.state == STATE_MENU:
-            self.ui_manager.draw_menu(self.screen)
+            self.ui_manager.draw_menu(self.screen, self.save_manager.skin_index)
 
-        elif self.state == STATE_PLAYING or self.state == STATE_PAUSED or self.state == STATE_GAME_OVER:
+        elif self.state in [STATE_PLAYING, STATE_PAUSED, STATE_GAME_OVER]:
             self._draw_game()
-
             if self.state == STATE_PAUSED:
                 self.ui_manager.draw_pause_menu(self.screen)
             elif self.state == STATE_GAME_OVER:
-                score = self.save_manager.last_score
-                best_score = self.save_manager.best_score
-                won = score >= 1000
-                self.ui_manager.draw_game_over(self.screen, score, best_score, won)
+                self.ui_manager.draw_game_over(self.screen, self.save_manager.last_score, self.save_manager.best_score)
 
-        elif self.state == STATE_SETTINGS:
-            self.ui_manager.draw_settings(self.screen, self.save_manager.skin_index)
-
-        # Particles always draw
         self.ui_manager.particles.draw(self.screen, self.camera_x)
 
-        # Death flash
         if self.death_flash > 0:
             flash_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             alpha = int(150 * self.death_flash)
@@ -372,29 +307,20 @@ class Game:
             self.screen.blit(flash_surface, (0, 0))
 
     def _draw_game(self):
-        """Draw the game world."""
         self.level.draw_ground(self.screen, self.camera_x, SCREEN_WIDTH)
-
         for obstacle in self.level.obstacles:
             obstacle.draw(self.screen, self.camera_x)
-
         if self.player.alive:
             self.player.draw(self.screen, self.camera_x)
-
         progress = self.level.get_progress(self.player.rect.x)
-        score = int(progress * 10)
-        self.ui_manager.draw_hud(self.screen, progress, score, self.save_manager.best_score)
+        self.ui_manager.draw_hud(self.screen, progress, int(progress * 10), self.save_manager.best_score)
 
-        # Draw finish line near end
         if self.level.length - self.camera_x < SCREEN_WIDTH:
             finish_x = self.level.length - self.camera_x
             pygame.draw.line(self.screen, NEON_GREEN, (finish_x, 0), (finish_x, GROUND_Y), 5)
-            flag_points = [(finish_x, 20), (finish_x + 40, 40), (finish_x, 60)]
-            pygame.draw.polygon(self.screen, NEON_GREEN, flag_points)
 
 
 async def main():
-    """Start the game."""
     game = Game()
     await game.run()
 

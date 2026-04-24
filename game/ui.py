@@ -4,7 +4,7 @@ from .settings import *
 
 
 class Button:
-    """A clickable button with hover effect."""
+    """A clickable button with hover effect and fixed touch hitboxes."""
 
     def __init__(self, x, y, width, height, text, color=NEON_BLUE, hover_color=NEON_PINK):
         self.rect = pygame.Rect(x, y, width, height)
@@ -12,32 +12,34 @@ class Button:
         self.color = color
         self.hover_color = hover_color
         self.is_hovered = False
-        self.font = pygame.font.Font(None, FONT_SIZE_MEDIUM)
+        # Use a system font that works well in browsers
+        self.font = pygame.font.SysFont("Arial", FONT_SIZE_MEDIUM, bold=True)
 
     def handle_event(self, event):
-        """Check if button was clicked."""
+        """Check if button was clicked, supporting mouse and touch."""
+        pos = None
         if event.type == pygame.MOUSEMOTION:
-            self.is_hovered = self.rect.collidepoint(event.pos)
+            pos = event.pos
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self.is_hovered:
+            pos = event.pos
+        
+        # In SCALED mode, event.pos is usually already mapped correctly, 
+        # but we ensure collision is checked against our internal Rect.
+        if pos:
+            self.is_hovered = self.rect.collidepoint(pos)
+            if event.type == pygame.MOUSEBUTTONDOWN and self.is_hovered:
                 return True
         return False
 
     def draw(self, screen):
-        """Draw the button."""
+        """Draw the button with a clear border and glow."""
         color = self.hover_color if self.is_hovered else self.color
 
-        # Glow when hovered
-        if self.is_hovered:
-            glow_rect = pygame.Rect(
-                self.rect.x - 3, self.rect.y - 3,
-                self.rect.width + 6, self.rect.height + 6
-            )
-            pygame.draw.rect(screen, (*color, 80), glow_rect)
-
+        # Draw button box
         pygame.draw.rect(screen, DARK_BG, self.rect)
         pygame.draw.rect(screen, color, self.rect, 3)
 
+        # Draw text
         text_surface = self.font.render(self.text, True, color)
         text_rect = text_surface.get_rect(center=self.rect.center)
         screen.blit(text_surface, text_rect)
@@ -51,19 +53,19 @@ class ParticleSystem:
 
     def emit_jump_particles(self, x, y, color):
         """Sparks when jumping."""
-        for _ in range(15):
+        for _ in range(8):
             self.particles.append({
                 'x': x, 'y': y,
                 'vx': random.uniform(-100, 100),
                 'vy': random.uniform(-200, -50),
                 'life': 1.0,
                 'color': color,
-                'size': random.uniform(3, 8)
+                'size': random.uniform(2, 5)
             })
 
     def emit_death_particles(self, x, y, color):
         """Explosion when dying."""
-        for _ in range(40):
+        for _ in range(25):
             angle = random.uniform(0, 360)
             speed = random.uniform(100, 400)
             import math
@@ -73,12 +75,12 @@ class ParticleSystem:
                 'vy': speed * math.sin(math.radians(angle)),
                 'life': 1.0,
                 'color': color,
-                'size': random.uniform(4, 12)
+                'size': random.uniform(3, 8)
             })
 
     def emit_trail_particles(self, x, y, color):
         """Sparks behind player."""
-        if random.random() < 0.3:
+        if random.random() < 0.2:
             self.particles.append({
                 'x': x + random.uniform(-5, 5),
                 'y': y + random.uniform(-5, 5),
@@ -86,7 +88,7 @@ class ParticleSystem:
                 'vy': random.uniform(-20, 20),
                 'life': 0.5,
                 'color': color,
-                'size': random.uniform(2, 5)
+                'size': random.uniform(2, 4)
             })
 
     def update(self, dt):
@@ -101,17 +103,12 @@ class ParticleSystem:
                 self.particles.remove(particle)
 
     def draw(self, screen, camera_x):
-        """Draw all particles."""
+        """Draw all particles directly (Performance optimization)."""
         for particle in self.particles:
-            screen_x = particle['x'] - camera_x
-            alpha = int(255 * particle['life'])
+            screen_x = int(particle['x'] - camera_x)
             size = int(particle['size'])
-
             if size > 0:
-                surface = pygame.Surface((size, size), pygame.SRCALPHA)
-                pygame.draw.circle(surface, (*particle['color'], alpha),
-                                 (size//2, size//2), size//2)
-                screen.blit(surface, (screen_x - size//2, particle['y'] - size//2))
+                pygame.draw.circle(screen, particle['color'], (screen_x, int(particle['y'])), size)
 
 
 class ParallaxBackground:
@@ -119,39 +116,24 @@ class ParallaxBackground:
 
     def __init__(self):
         self.stars = []
-        for _ in range(100):
+        for _ in range(50):
             self.stars.append({
-                'x': random.randint(0, SCREEN_WIDTH * 3),
+                'x': random.randint(0, SCREEN_WIDTH),
                 'y': random.randint(0, SCREEN_HEIGHT - 150),
-                'size': random.uniform(1, 3),
-                'speed': random.uniform(0.1, 0.3),
-                'twinkle': random.uniform(0, 360)
+                'size': random.randint(1, 2),
+                'speed': random.uniform(0.05, 0.15),
             })
         self.background_color = DARK_BG
 
     def update(self, dt, camera_x):
-        """Update star twinkling."""
-        for star in self.stars:
-            star['twinkle'] += dt * 90
+        pass
 
     def draw(self, screen, camera_x):
         """Draw the background."""
         screen.fill(self.background_color)
-
-        # Draw stars
         for star in self.stars:
-            screen_x = star['x'] - camera_x * star['speed']
-            screen_x = screen_x % SCREEN_WIDTH
-
-            size = int(star['size'])
-            import math
-            brightness = int(128 + 127 * math.cos(math.radians(star['twinkle'])))
-
-            if size > 0:
-                surface = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
-                pygame.draw.circle(surface, (255, 255, 255, brightness),
-                                 (size, size), size)
-                screen.blit(surface, (screen_x - size, star['y'] - size))
+            screen_x = int((star['x'] - camera_x * star['speed']) % SCREEN_WIDTH)
+            pygame.draw.circle(screen, (150, 150, 200), (screen_x, star['y']), star['size'])
 
 
 class UIManager:
@@ -160,18 +142,18 @@ class UIManager:
     def __init__(self, screen_width, screen_height):
         self.screen_width = screen_width
         self.screen_height = screen_height
-        self.font_large = pygame.font.Font(None, FONT_SIZE_LARGE)
-        self.font_medium = pygame.font.Font(None, FONT_SIZE_MEDIUM)
-        self.font_small = pygame.font.Font(None, FONT_SIZE_SMALL)
+        self.font_large = pygame.font.SysFont("Arial", FONT_SIZE_LARGE, bold=True)
+        self.font_medium = pygame.font.SysFont("Arial", FONT_SIZE_MEDIUM, bold=True)
+        self.font_small = pygame.font.SysFont("Arial", FONT_SIZE_SMALL)
         self.particles = ParticleSystem()
         self.background = ParallaxBackground()
 
         center_x = screen_width // 2
 
-        # Main menu buttons
+        # Main menu buttons (Bigger and more spaced for mobile)
         self.menu_buttons = [
             Button(center_x - BUTTON_WIDTH//2, 300, BUTTON_WIDTH, BUTTON_HEIGHT, "START GAME"),
-            Button(center_x - BUTTON_WIDTH//2, 380, BUTTON_WIDTH, BUTTON_HEIGHT, "SETTINGS"),
+            Button(center_x - BUTTON_WIDTH//2, 380, BUTTON_WIDTH, BUTTON_HEIGHT, "CHANGE SKIN"),
             Button(center_x - BUTTON_WIDTH//2, 460, BUTTON_WIDTH, BUTTON_HEIGHT, "EXIT"),
         ]
 
@@ -188,12 +170,6 @@ class UIManager:
             Button(center_x - BUTTON_WIDTH//2, 480, BUTTON_WIDTH, BUTTON_HEIGHT, "MAIN MENU"),
         ]
 
-        # Settings buttons
-        self.settings_buttons = [
-            Button(center_x - BUTTON_WIDTH//2, 250, BUTTON_WIDTH, BUTTON_HEIGHT, "CHANGE SKIN"),
-            Button(center_x - BUTTON_WIDTH//2, 350, BUTTON_WIDTH, BUTTON_HEIGHT, "BACK"),
-        ]
-
     def handle_event(self, event, buttons=None):
         """Check if any button was clicked."""
         if buttons is None:
@@ -205,7 +181,6 @@ class UIManager:
 
     def draw_hud(self, screen, progress, score, best_score):
         """Draw score and progress bar."""
-        # Progress bar
         bar_width = 400
         bar_height = 20
         bar_x = (self.screen_width - bar_width) // 2
@@ -222,26 +197,20 @@ class UIManager:
         text_rect = text_surface.get_rect(center=(bar_x + bar_width//2, bar_y + bar_height//2))
         screen.blit(text_surface, text_rect)
 
-        # Scores
         screen.blit(self.font_small.render(f"Score: {score}", True, NEON_BLUE), (20, 20))
         screen.blit(self.font_small.render(f"Best: {best_score}", True, NEON_YELLOW), (20, 50))
 
-        # Controls hint
-        screen.blit(self.font_small.render("SPACE: Jump | ESC: Pause | R: Restart", True, (150, 150, 150)),
-                   (self.screen_width - 350, self.screen_height - 30))
-
-    def draw_menu(self, screen):
-        """Draw the main menu screen."""
-        # Title
+    def draw_menu(self, screen, current_skin):
+        """Draw the main menu screen with a skin preview."""
         title_surface = self.font_large.render("NEON DASH", True, NEON_BLUE)
         title_rect = title_surface.get_rect(center=(self.screen_width // 2, 150))
         screen.blit(title_surface, title_rect)
 
-        # Subtitle
-        subtitle = "A Geometry Dash Clone"
-        subtitle_surface = self.font_small.render(subtitle, True, (150, 150, 150))
-        subtitle_rect = subtitle_surface.get_rect(center=(self.screen_width // 2, 220))
-        screen.blit(subtitle_surface, subtitle_rect)
+        # Skin preview (The "Rotate" visual)
+        skin_color = PLAYER_SKINS[current_skin]
+        preview_rect = pygame.Rect(self.screen_width // 2 - 25, 220, 50, 50)
+        pygame.draw.rect(screen, skin_color, preview_rect)
+        pygame.draw.rect(screen, WHITE, preview_rect, 3)
 
         for button in self.menu_buttons:
             button.draw(screen)
@@ -251,10 +220,7 @@ class UIManager:
         overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 150))
         screen.blit(overlay, (0, 0))
-
-        screen.blit(self.font_large.render("PAUSED", True, NEON_BLUE),
-                   (self.screen_width // 2 - 100, 150))
-
+        screen.blit(self.font_large.render("PAUSED", True, NEON_BLUE), (self.screen_width // 2 - 120, 150))
         for button in self.pause_buttons:
             button.draw(screen)
 
@@ -264,50 +230,17 @@ class UIManager:
         overlay.fill((0, 0, 0, 180))
         screen.blit(overlay, (0, 0))
 
-        if won:
-            title_text = "LEVEL COMPLETE!"
-            title_color = NEON_GREEN
-        else:
-            title_text = "GAME OVER"
-            title_color = NEON_RED
+        title_text = "LEVEL COMPLETE!" if won else "GAME OVER"
+        title_color = NEON_GREEN if won else NEON_RED
 
-        screen.blit(self.font_large.render(title_text, True, title_color),
-                   (self.screen_width // 2 - 200, 150))
-        screen.blit(self.font_medium.render(f"Score: {score}", True, WHITE),
-                   (self.screen_width // 2 - 50, 230))
-        screen.blit(self.font_medium.render(f"Best: {best_score}", True, NEON_YELLOW),
-                   (self.screen_width // 2 - 50, 280))
-
-        if score > best_score and score > 0:
-            screen.blit(self.font_small.render("NEW BEST!", True, NEON_GREEN),
-                       (self.screen_width // 2 - 50, 330))
+        title_surf = self.font_large.render(title_text, True, title_color)
+        screen.blit(title_surf, (self.screen_width // 2 - title_surf.get_width()//2, 150))
+        
+        score_surf = self.font_medium.render(f"Score: {score}", True, WHITE)
+        screen.blit(score_surf, (self.screen_width // 2 - score_surf.get_width()//2, 230))
+        
+        best_surf = self.font_medium.render(f"Best: {best_score}", True, NEON_YELLOW)
+        screen.blit(best_surf, (self.screen_width // 2 - best_surf.get_width()//2, 280))
 
         for button in self.game_over_buttons:
-            button.draw(screen)
-
-    def draw_settings(self, screen, current_skin):
-        """Draw settings screen."""
-        screen.blit(self.font_large.render("SETTINGS", True, NEON_BLUE),
-                   (self.screen_width // 2 - 80, 100))
-
-        screen.blit(self.font_medium.render("Player Skin:", True, WHITE),
-                   (self.screen_width // 2 - 60, 180))
-
-        # Skin preview
-        skin_color = PLAYER_SKINS[current_skin]
-        preview_size = 60
-        preview_rect = pygame.Rect(
-            self.screen_width // 2 - preview_size // 2,
-            210,
-            preview_size,
-            preview_size
-        )
-        pygame.draw.rect(screen, skin_color, preview_rect)
-        pygame.draw.rect(screen, WHITE, preview_rect, 3)
-
-        skin_names = ["Blue", "Pink", "Green", "Yellow", "Orange"]
-        screen.blit(self.font_small.render(skin_names[current_skin], True, skin_color),
-                   (self.screen_width // 2 - 30, 290))
-
-        for button in self.settings_buttons:
             button.draw(screen)
