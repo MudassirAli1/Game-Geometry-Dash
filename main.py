@@ -121,7 +121,8 @@ class Game:
         pygame.init()
         pygame.mixer.init()
 
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        # SCALED flag makes the game fill the browser window automatically
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SCALED)
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
         self.delta_time = 0
@@ -162,6 +163,20 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
+
+            # Mobile Touch / Mouse Click for jumping
+            if self.state == STATE_PLAYING:
+                if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.FINGERDOWN:
+                    self.player.is_holding_jump = True
+                    if self.player.jump():
+                        self.sound_manager.play('jump')
+                        self.ui_manager.particles.emit_jump_particles(
+                            self.player.rect.centerx,
+                            self.player.rect.bottom,
+                            self.player.color
+                        )
+                elif event.type == pygame.MOUSEBUTTONUP or event.type == pygame.FINGERUP:
+                    self.player.is_holding_jump = False
 
             # Handle button clicks based on game state
             if self.state == STATE_MENU:
