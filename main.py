@@ -126,9 +126,7 @@ class Game:
         self.clock = pygame.time.Clock()
         self.delta_time = 0
 
-        self.state = STATE_LOADING
-        self.loading_timer = 3.0  # 3 seconds of "loading"
-        self.loading_duration = 3.0
+        self.state = STATE_MENU
         self.camera_x = 0
 
         self.save_manager = SaveManager(SAVE_FILE)
