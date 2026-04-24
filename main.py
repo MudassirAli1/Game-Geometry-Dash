@@ -126,7 +126,9 @@ class Game:
         self.clock = pygame.time.Clock()
         self.delta_time = 0
 
-        self.state = STATE_MENU
+        self.state = STATE_LOADING
+        self.loading_timer = 3.0  # 3 seconds of "loading"
+        self.loading_duration = 3.0
         self.camera_x = 0
 
         self.save_manager = SaveManager(SAVE_FILE)
@@ -233,6 +235,11 @@ class Game:
         """Update game logic."""
         self.ui_manager.particles.update(self.delta_time)
 
+        if self.state == STATE_LOADING:
+            self.loading_timer -= self.delta_time
+            if self.loading_timer <= 0:
+                self.state = STATE_MENU
+
         if self.state == STATE_MENU or self.state == STATE_SETTINGS:
             self.ui_manager.background.update(self.delta_time, self.camera_x)
 
@@ -309,6 +316,11 @@ class Game:
 
     def _draw(self):
         """Draw everything on screen."""
+        if self.state == STATE_LOADING:
+            progress = (self.loading_duration - self.loading_timer) / self.loading_duration
+            self.ui_manager.draw_loading_screen(self.screen, progress, self.loading_timer)
+            return
+
         self.ui_manager.background.draw(self.screen, self.camera_x)
 
         if self.state == STATE_MENU:

@@ -51,19 +51,19 @@ class ParticleSystem:
 
     def emit_jump_particles(self, x, y, color):
         """Sparks when jumping."""
-        for _ in range(15):
+        for _ in range(8):  # Reduced from 15
             self.particles.append({
                 'x': x, 'y': y,
                 'vx': random.uniform(-100, 100),
                 'vy': random.uniform(-200, -50),
                 'life': 1.0,
                 'color': color,
-                'size': random.uniform(3, 8)
+                'size': random.uniform(2, 6)
             })
 
     def emit_death_particles(self, x, y, color):
         """Explosion when dying."""
-        for _ in range(40):
+        for _ in range(20):  # Reduced from 40
             angle = random.uniform(0, 360)
             speed = random.uniform(100, 400)
             import math
@@ -73,12 +73,12 @@ class ParticleSystem:
                 'vy': speed * math.sin(math.radians(angle)),
                 'life': 1.0,
                 'color': color,
-                'size': random.uniform(4, 12)
+                'size': random.uniform(3, 10)
             })
 
     def emit_trail_particles(self, x, y, color):
         """Sparks behind player."""
-        if random.random() < 0.3:
+        if random.random() < 0.2:  # Reduced frequency
             self.particles.append({
                 'x': x + random.uniform(-5, 5),
                 'y': y + random.uniform(-5, 5),
@@ -86,7 +86,7 @@ class ParticleSystem:
                 'vy': random.uniform(-20, 20),
                 'life': 0.5,
                 'color': color,
-                'size': random.uniform(2, 5)
+                'size': random.uniform(2, 4)
             })
 
     def update(self, dt):
@@ -104,14 +104,10 @@ class ParticleSystem:
         """Draw all particles."""
         for particle in self.particles:
             screen_x = particle['x'] - camera_x
-            alpha = int(255 * particle['life'])
             size = int(particle['size'])
-
             if size > 0:
-                surface = pygame.Surface((size, size), pygame.SRCALPHA)
-                pygame.draw.circle(surface, (*particle['color'], alpha),
-                                 (size//2, size//2), size//2)
-                screen.blit(surface, (screen_x - size//2, particle['y'] - size//2))
+                # Direct draw is much faster than creating a surface for each particle
+                pygame.draw.circle(screen, particle['color'], (int(screen_x), int(particle['y'])), size)
 
 
 class ParallaxBackground:
@@ -119,39 +115,26 @@ class ParallaxBackground:
 
     def __init__(self):
         self.stars = []
-        for _ in range(100):
+        for _ in range(60):  # Reduced from 100
             self.stars.append({
-                'x': random.randint(0, SCREEN_WIDTH * 3),
+                'x': random.randint(0, SCREEN_WIDTH),
                 'y': random.randint(0, SCREEN_HEIGHT - 150),
-                'size': random.uniform(1, 3),
-                'speed': random.uniform(0.1, 0.3),
-                'twinkle': random.uniform(0, 360)
+                'size': random.randint(1, 3),
+                'speed': random.uniform(0.05, 0.15),
             })
         self.background_color = DARK_BG
 
     def update(self, dt, camera_x):
-        """Update star twinkling."""
-        for star in self.stars:
-            star['twinkle'] += dt * 90
+        pass
 
     def draw(self, screen, camera_x):
         """Draw the background."""
         screen.fill(self.background_color)
 
-        # Draw stars
+        # Draw stars simply without per-frame surface creation
         for star in self.stars:
-            screen_x = star['x'] - camera_x * star['speed']
-            screen_x = screen_x % SCREEN_WIDTH
-
-            size = int(star['size'])
-            import math
-            brightness = int(128 + 127 * math.cos(math.radians(star['twinkle'])))
-
-            if size > 0:
-                surface = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
-                pygame.draw.circle(surface, (255, 255, 255, brightness),
-                                 (size, size), size)
-                screen.blit(surface, (screen_x - size, star['y'] - size))
+            screen_x = (star['x'] - camera_x * star['speed']) % SCREEN_WIDTH
+            pygame.draw.circle(screen, (200, 200, 255), (int(screen_x), star['y']), star['size'])
 
 
 class UIManager:
@@ -229,6 +212,38 @@ class UIManager:
         # Controls hint
         screen.blit(self.font_small.render("SPACE: Jump | ESC: Pause | R: Restart", True, (150, 150, 150)),
                    (self.screen_width - 350, self.screen_height - 30))
+
+    def draw_loading_screen(self, screen, progress, time_left):
+        """Draw a professional loading screen with a timer."""
+        screen.fill(DARK_BG)
+        center_x = self.screen_width // 2
+        center_y = self.screen_height // 2
+
+        # Title
+        title_surface = self.font_large.render("NEON DASH", True, NEON_BLUE)
+        title_rect = title_surface.get_rect(center=(center_x, center_y - 100))
+        screen.blit(title_surface, title_rect)
+
+        # Loading bar background
+        bar_width = 400
+        bar_height = 10
+        pygame.draw.rect(screen, (30, 30, 50), (center_x - bar_width//2, center_y, bar_width, bar_height))
+        
+        # Loading bar fill
+        fill_width = int(bar_width * progress)
+        pygame.draw.rect(screen, NEON_BLUE, (center_x - bar_width//2, center_y, fill_width, bar_height))
+        
+        # Loading text
+        loading_text = f"INITIALIZING SYSTEM... {int(progress * 100)}%"
+        text_surface = self.font_small.render(loading_text, True, WHITE)
+        text_rect = text_surface.get_rect(center=(center_x, center_y + 40))
+        screen.blit(text_surface, text_rect)
+
+        # Timer
+        timer_text = f"Estimated time: {max(0, round(time_left, 1))}s"
+        timer_surface = self.font_small.render(timer_text, True, (150, 150, 150))
+        timer_rect = timer_surface.get_rect(center=(center_x, center_y + 70))
+        screen.blit(timer_surface, timer_rect)
 
     def draw_menu(self, screen):
         """Draw the main menu screen."""

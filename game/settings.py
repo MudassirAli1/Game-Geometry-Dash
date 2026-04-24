@@ -32,6 +32,7 @@ MAX_DELTA = 1/30
 LEVEL_LENGTH = 10000  # How long the level is (in pixels)
 
 # Game screens
+STATE_LOADING = "loading"
 STATE_MENU = "menu"
 STATE_PLAYING = "playing"
 STATE_PAUSED = "paused"
