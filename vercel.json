@@ -2,7 +2,7 @@
   "version": 2,
   "public": true,
   "cleanUrls": true,
-  "buildCommand": "pip install pygbag --break-system-packages && python3 -m pygbag --build main.py",
+  "buildCommand": "python3 -m pip install pygbag --break-system-packages && python3 -m pygbag --build main.py",
   "outputDirectory": "build/web",
   "framework": null
 }
